@@ -208,6 +208,7 @@ describe("request obo token", () => {
               subject: "token_x_client_id",
               issuer: "token_x_client_id",
               audience: "http://tokenx.test/token",
+              algorithms: ["RS256"],
             },
           );
 
@@ -220,7 +221,9 @@ describe("request obo token", () => {
               subject_token_type !== "urn:ietf:params:oauth:token-type:jwt" ||
               client_assert_token.payload.nbf !==
                 Math.floor(Date.now() / 1000) ||
-              !client_assert_token.payload.jti
+              !client_assert_token.payload.jti ||
+              client_assert_token.payload.exp! - Math.floor(Date.now() / 1000) >
+                120
               ? {}
               : {
                   access_token: await token({
