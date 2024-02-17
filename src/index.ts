@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { Client, GrantBody, GrantExtras, Issuer, errors } from "openid-client";
+import { Issuer, errors } from "openid-client";
 const { OPError } = errors;
 
 interface Res<T> {
@@ -77,11 +77,9 @@ export const requestOboToken = async (
   audience: string,
 ): Promise<Res<string>> => {
   try {
-    const { access_token } = await new new Issuer({
-      issuer: process.env.TOKEN_X_ISSUER!,
-      token_endpoint: process.env.TOKEN_X_TOKEN_ENDPOINT,
-      token_endpoint_auth_signing_alg_values_supported: ["RS256"],
-    }).Client(
+    const { access_token } = await new (
+      await Issuer.discover(process.env.TOKEN_X_WELL_KNOWN_URL!)
+    ).Client(
       {
         client_id: process.env.TOKEN_X_CLIENT_ID!,
         token_endpoint_auth_method: "private_key_jwt",
@@ -90,8 +88,6 @@ export const requestOboToken = async (
     ).grant(
       {
         grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
-        client_assertion_type:
-          "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
         subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
         audience,
         subject_token: token,
@@ -99,7 +95,6 @@ export const requestOboToken = async (
       {
         clientAssertionPayload: {
           nbf: Math.floor(Date.now() / 1000),
-          aud: process.env.TOKEN_X_TOKEN_ENDPOINT,
         },
       },
     );
