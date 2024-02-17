@@ -1,12 +1,13 @@
 import {
   GenerateKeyPairResult,
   SignJWT,
+  decodeJwt,
   exportJWK,
   generateKeyPair,
 } from "jose";
 import { HttpResponse, http } from "msw";
 import { SetupServer, setupServer } from "msw/node";
-import { validateToken } from ".";
+import { validateToken, requestOboToken } from ".";
 
 const alg = "RS256";
 
@@ -17,14 +18,16 @@ export const jwk = async () => exportJWK((await cachedKeyPair).publicKey);
 export const jwkPrivate = async () => exportJWK(await privateKey());
 
 export const token = async ({
+  pid,
   audience,
   issuer,
 }: {
+  pid?: string;
   audience: string | string[];
   issuer: string;
 }) =>
   new SignJWT({
-    pid: "pid",
+    pid: pid ?? "pid",
   })
     .setProtectedHeader({ alg })
     .setAudience(audience)
@@ -158,6 +161,68 @@ describe("validate token", () => {
       );
       expect(result.isError() && result.getError().message).toBe(
         'unexpected "aud" claim value',
+      );
+    });
+  });
+});
+
+describe("request obo token", () => {
+  describe("tokenX", () => {
+    let server: SetupServer;
+
+    beforeAll(async () => {
+      process.env.TOKEN_X_TOKEN_ENDPOINT = "http://tokenx.test/token";
+      process.env.TOKEN_X_CLIENT_ID = "token_x_client_id";
+      process.env.TOKEN_X_PRIVATE_JWK = JSON.stringify(await jwkPrivate());
+
+      server = setupServer(
+        http.post(process.env.TOKEN_X_TOKEN_ENDPOINT, async ({ request }) => {
+          const { audience, subject_Token } = Object.fromEntries(
+            new URLSearchParams(await request.text()),
+          );
+
+          return HttpResponse.json(
+            audience === "error-audience"
+              ? {}
+              : {
+                  access_token: await token({
+                    pid: subject_Token,
+                    issuer: "urn:tokenx:dings",
+                    audience,
+                  }),
+                },
+          );
+        }),
+      );
+      server.listen();
+    });
+
+    afterAll(() => server.close());
+
+    it("returns token when exchanges succeeds", async () => {
+      const result = await requestOboToken(
+        await token({
+          audience: "idporten_audience",
+          issuer: "idporten_issuer",
+        }),
+        "audience",
+      );
+
+      expect(result.isOk() && decodeJwt(result.get()).iss).toBe(
+        "urn:tokenx:dings",
+      );
+    });
+
+    it("returns error when exchange fails", async () => {
+      const result = await requestOboToken(
+        await token({
+          audience: "idporten_audience",
+          issuer: "idporten_issuer",
+        }),
+        "error-audience",
+      );
+      expect(result.isError() && result.getError().message).toBe(
+        "TokenSet does not contain an access_token",
       );
     });
   });
