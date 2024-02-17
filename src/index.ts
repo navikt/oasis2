@@ -1,19 +1,34 @@
 import { JWTVerifyResult, createRemoteJWKSet, jwtVerify } from "jose";
 
-type Result = {
-  isOk: () => boolean;
+interface Res {
+  isOk(this: Res): this is Ok;
+  isError(this: Res): this is Err;
+}
+
+type Ok = Res & {
+  tag: "Ok";
+};
+
+type Err = Res & {
+  tag: "Err";
+  getError(): Error;
 };
 
 const Result = {
-  ok: () => ({
+  ok: (): Ok => ({
+    tag: "Ok",
     isOk: () => true,
+    isError: () => false,
   }),
-  error: (message: string) => ({
+  error: (error: Error): Err => ({
+    tag: "Err",
     isOk: () => false,
+    isError: () => true,
+    getError: () => error,
   }),
 };
 
-export const validateToken = async (token: string): Promise<Result> => {
+export const validateToken = async (token: string): Promise<Res> => {
   if (token) {
     try {
       await jwtVerify(
@@ -26,10 +41,9 @@ export const validateToken = async (token: string): Promise<Result> => {
       );
       return Result.ok();
     } catch (e) {
-      console.log(e);
-      return Result.error(e.message);
+      return Result.error(e);
     }
   } else {
-    return Result.error("Empty token");
+    return Result.error(new Error("empty token"));
   }
 };

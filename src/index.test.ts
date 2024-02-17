@@ -57,6 +57,29 @@ describe("validate token", () => {
   });
 
   it("fails for empty token", async () => {
-    expect((await validateToken("")).isOk()).toBe(false);
+    const result = await validateToken("");
+    expect(result.isError() && result.getError().message).toBe("empty token");
+  });
+
+  it("fails verification when issuer is not idporten", async () => {
+    const result = await validateToken(
+      await token("a valid token", {
+        issuer: "not idporten",
+      }),
+    );
+    expect(result.isError() && result.getError().message).toBe(
+      'unexpected "iss" claim value',
+    );
+  });
+
+  it("fails verification when audience is not idporten", async () => {
+    const result = await validateToken(
+      await token("a valid token", {
+        audience: "not idporten",
+      }),
+    );
+    expect(result.isError() && result.getError().message).toBe(
+      'unexpected "aud" claim value',
+    );
   });
 });
