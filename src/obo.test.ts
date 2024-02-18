@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, decodeJwt, jwtVerify } from "jose";
 import { HttpResponse, http } from "msw";
 import { SetupServer, setupServer } from "msw/node";
-import { requestOboToken } from "./obo";
+import { requestOboToken, requestAzureOboToken } from "./obo";
 import { jwk, jwkPrivate, token } from "./test-provider";
 
 describe("request obo token", () => {
@@ -9,25 +9,25 @@ describe("request obo token", () => {
     let server: SetupServer;
 
     beforeAll(async () => {
-      process.env.TOKEN_X_TOKEN_ENDPOINT = "http://tokenx.test/token";
       process.env.TOKEN_X_CLIENT_ID = "token_x_client_id";
       process.env.TOKEN_X_PRIVATE_JWK = JSON.stringify(await jwkPrivate());
-      process.env.TOKEN_X_WELL_KNOWN_URL = "http://azure-provider.test/jwks";
+      process.env.TOKEN_X_WELL_KNOWN_URL = "http://tokenx-provider.test/jwks";
+
+      const token_endpoint = "http://tokenx.test/token";
 
       server = setupServer(
         http.get(
           `${process.env.TOKEN_X_WELL_KNOWN_URL}/.well-known/openid-configuration`,
           async () =>
             HttpResponse.json({
-              issuer: process.env.TOKEN_X_ISSUER,
-              token_endpoint: process.env.TOKEN_X_TOKEN_ENDPOINT,
+              token_endpoint,
               token_endpoint_auth_signing_alg_values_supported: ["RS256"],
             }),
         ),
         http.get(process.env.TOKEN_X_WELL_KNOWN_URL, async () =>
           HttpResponse.json({ keys: [await jwk()] }),
         ),
-        http.post(process.env.TOKEN_X_TOKEN_ENDPOINT, async ({ request }) => {
+        http.post(token_endpoint, async ({ request }) => {
           const {
             audience,
             subject_token,
@@ -62,6 +62,7 @@ describe("request obo token", () => {
           ) {
             throw Error("wrong subject_token_type");
           } else if (
+            // TODO: flaky!
             client_assert_token.payload.nbf !== Math.floor(Date.now() / 1000)
           ) {
             throw Error("wrong client_assert_token.payload.nbf");
@@ -87,7 +88,7 @@ describe("request obo token", () => {
       );
       server.listen();
     });
-
+    afterEach(() => server.resetHandlers());
     afterAll(() => server.close());
 
     it("returns token when exchanges succeeds", async () => {
@@ -135,6 +136,109 @@ describe("request obo token", () => {
         await token({
           audience: "idporten_audience",
           issuer: "idporten_issuer",
+        }),
+        "error-audience",
+      );
+      expect(result.isError() && result.getError().message).toBe(
+        "error-audience",
+      );
+    });
+  });
+
+  describe("azure", () => {
+    let server: SetupServer;
+
+    beforeAll(async () => {
+      process.env.AZURE_APP_CLIENT_ID = "azure_client_id";
+      process.env.AZURE_APP_CLIENT_SECRET = "azure_client_secret";
+      process.env.AZURE_APP_JWK = JSON.stringify(await jwkPrivate());
+      process.env.AZURE_APP_WELL_KNOWN_URL = "http://azure-provider.test/jwks";
+
+      const token_endpoint = "http://azure.test/token";
+
+      server = setupServer(
+        http.get(
+          `${process.env.AZURE_APP_WELL_KNOWN_URL}/.well-known/openid-configuration`,
+          async () =>
+            HttpResponse.json({
+              token_endpoint,
+              token_endpoint_auth_signing_alg_values_supported: ["RS256"],
+            }),
+        ),
+        http.get(process.env.AZURE_APP_WELL_KNOWN_URL, async () =>
+          HttpResponse.json({ keys: [await jwk()] }),
+        ),
+        http.post(token_endpoint, async ({ request }) => {
+          const { scope, assertion } = Object.fromEntries(
+            new URLSearchParams(await request.text()),
+          );
+
+          if (scope === "error-audience") {
+            throw Error("error-audience");
+          } else {
+            return HttpResponse.json({
+              access_token: await token({
+                pid: assertion,
+                issuer: "urn:azure:dings",
+                audience: scope,
+              }),
+            });
+          }
+        }),
+      );
+      server.listen();
+    });
+    afterEach(() => server.resetHandlers());
+    afterAll(() => server.close());
+
+    it("returns token when exchanges succeeds", async () => {
+      const jwt = await token({
+        audience: "azure_audience",
+        issuer: "azure_issuer",
+      });
+      const result = await requestAzureOboToken(jwt, "audience");
+
+      expect(result.isOk() && decodeJwt(result.get()).iss).toBe(
+        "urn:azure:dings",
+      );
+      expect(result.isOk() && decodeJwt(result.get()).pid).toBe(jwt);
+      expect(result.isOk() && decodeJwt(result.get()).nbf).toBe(undefined);
+    });
+
+    it("returns valid token", async () => {
+      const result = await requestAzureOboToken(
+        await token({
+          audience: "azure_audience",
+          issuer: "azure_issuer",
+        }),
+        "audience",
+      );
+
+      expect(result.isError() && result.getError().message).toBe(false);
+
+      if (result.isOk()) {
+        expect(
+          (() =>
+            jwtVerify(
+              result.get(),
+              createRemoteJWKSet(
+                new URL(process.env.AZURE_APP_WELL_KNOWN_URL!),
+              ),
+              {
+                issuer: "urn:azure:dings",
+                audience: "audience",
+              },
+            ))(),
+        ).resolves.not.toThrow();
+      }
+    });
+
+    it("returns error when exchange fails", async () => {
+      //TODO: strange socket hang up issue?!
+      const result = await requestAzureOboToken(
+        await token({
+          audience: "azure_audience",
+          issuer: "azure_issuer",
         }),
         "error-audience",
       );
