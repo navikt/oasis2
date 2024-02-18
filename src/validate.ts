@@ -57,16 +57,13 @@ export const validateToken = async (
 
   const idporten: boolean = !!process.env.IDPORTEN_ISSUER;
   const azure: boolean = !!process.env.AZURE_OPENID_CONFIG_ISSUER;
-  const tokenx: boolean = !!process.env.TOKEN_X_ISSUER;
 
-  if ([idporten, azure, tokenx].filter(Boolean).length > 1) {
+  if (idporten && azure) {
     return Result.Error(new Error("multiple identity providers"));
   } else if (idporten) {
     return validateIdportenToken(token);
   } else if (azure) {
     return validateAzureToken(token);
-  } else if (tokenx) {
-    return validateTokenxToken(token);
   } else {
     return Result.Error(new Error("no identity provider"));
   }

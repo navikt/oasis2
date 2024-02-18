@@ -21,12 +21,7 @@ describe("validate token", () => {
   });
 
   it("fails with no identity provider", async () => {
-    const result = await validateToken(
-      await token({
-        audience: "idporten_audience",
-        issuer: "idporten_issuer",
-      }),
-    );
+    const result = await validateToken(await token());
     expect(result.isError() && result.getError().message).toBe(
       "no identity provider",
     );
@@ -36,12 +31,7 @@ describe("validate token", () => {
     process.env.IDPORTEN_ISSUER = "idporten_issuer";
     process.env.AZURE_OPENID_CONFIG_ISSUER = "azure_issuer";
 
-    const result = await validateToken(
-      await token({
-        audience: "idporten_audience",
-        issuer: "idporten_issuer",
-      }),
-    );
+    const result = await validateToken(await token());
     expect(result.isError() && result.getError().message).toBe(
       "multiple identity providers",
     );
@@ -52,7 +42,9 @@ describe("validate token", () => {
     process.env.IDPORTEN_ISSUER = "idporten_issuer";
 
     const result = await validateToken(await token());
-    expect(result.isError() && result.getError().message).toContain("idporten");
+    expect(result.isError() && result.getError().message).toBe(
+      "getaddrinfo ENOTFOUND idporten-provider.test",
+    );
   });
 
   it("selects azure", async () => {
@@ -61,15 +53,19 @@ describe("validate token", () => {
     process.env.AZURE_OPENID_CONFIG_ISSUER = "azure_issuer";
 
     const result = await validateToken(await token());
-    expect(result.isError() && result.getError().message).toContain("azure");
+    expect(result.isError() && result.getError().message).toBe(
+      "getaddrinfo ENOTFOUND azure-provider.test",
+    );
   });
 
-  it("selects tokenx", async () => {
+  it("doesn't select tokenx", async () => {
     process.env.TOKEN_X_JWKS_URI = "http://tokenx-provider.test/jwks";
     process.env.TOKEN_X_ISSUER = "tokenx_issuer";
 
     const result = await validateToken(await token());
-    expect(result.isError() && result.getError().message).toContain("tokenx");
+    expect(result.isError() && result.getError().message).toBe(
+      "no identity provider",
+    );
   });
 });
 
