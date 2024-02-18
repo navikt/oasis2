@@ -212,28 +212,41 @@ describe("request obo token", () => {
             },
           );
 
-          // TODO: meaningful error messages if these "tests" fail
-          return HttpResponse.json(
-            audience === "error-audience" ||
-              grant_type !==
-                "urn:ietf:params:oauth:grant-type:token-exchange" ||
-              client_assertion_type !==
-                "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" ||
-              subject_token_type !== "urn:ietf:params:oauth:token-type:jwt" ||
-              client_assert_token.payload.nbf !==
-                Math.floor(Date.now() / 1000) ||
-              !client_assert_token.payload.jti ||
-              client_assert_token.payload.exp! - Math.floor(Date.now() / 1000) >
-                120
-              ? {}
-              : {
-                  access_token: await token({
-                    pid: subject_token,
-                    issuer: "urn:tokenx:dings",
-                    audience,
-                  }),
-                },
-          );
+          if (
+            grant_type !== "urn:ietf:params:oauth:grant-type:token-exchange"
+          ) {
+            throw Error("wrong grant_type");
+          } else if (
+            client_assertion_type !==
+            "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+          ) {
+            throw Error("wrong client_assertion_type");
+          } else if (
+            subject_token_type !== "urn:ietf:params:oauth:token-type:jwt"
+          ) {
+            throw Error("wrong subject_token_type");
+          } else if (
+            client_assert_token.payload.nbf !== Math.floor(Date.now() / 1000)
+          ) {
+            throw Error("wrong client_assert_token.payload.nbf");
+          } else if (!client_assert_token.payload.jti) {
+            throw Error("missing client_assert_token.payload.jti");
+          } else if (
+            client_assert_token.payload.exp! - Math.floor(Date.now() / 1000) >
+            120
+          ) {
+            throw Error("client_assert_token.payload.exp too large");
+          } else if (audience === "error-audience") {
+            throw Error("error-audience");
+          } else {
+            return HttpResponse.json({
+              access_token: await token({
+                pid: subject_token,
+                issuer: "urn:tokenx:dings",
+                audience,
+              }),
+            });
+          }
         }),
       );
       server.listen();
@@ -264,9 +277,7 @@ describe("request obo token", () => {
         "audience",
       );
 
-      if (result.isError()) {
-        console.error("error", result.getError().message);
-      }
+      expect(result.isError() && result.getError().message).toBe(false);
 
       if (result.isOk()) {
         expect(
@@ -292,7 +303,7 @@ describe("request obo token", () => {
         "error-audience",
       );
       expect(result.isError() && result.getError().message).toBe(
-        "TokenSet does not contain an access_token",
+        "error-audience",
       );
     });
   });

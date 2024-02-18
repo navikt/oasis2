@@ -75,7 +75,6 @@ export const requestOboToken = async (
       ? Result.Ok(access_token)
       : Result.Error(Error("TokenSet does not contain an access_token"));
   } catch (e) {
-    if (e instanceof OPError) console.warn(e.message, e.response?.body || "");
-    throw e;
+    return Result.Error(e);
   }
 };
