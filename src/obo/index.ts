@@ -1,11 +1,7 @@
-import { createHash } from "node:crypto";
 import { GrantBody, Issuer } from "openid-client";
-import { Result } from "./result";
+import { Result } from "../result";
 import { withCache } from "./token-cache";
-
-function sha256(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
+import { withPrometheus } from "./prometheus";
 
 const grantOboToken: ({
   issuer,
@@ -46,49 +42,46 @@ const grantOboToken: ({
   }
 };
 
-export const requestAzureOboToken = async (assertion: string, scope: string) =>
-  withCache(
-    () =>
-      grantOboToken({
-        issuer: process.env.AZURE_OPENID_CONFIG_ISSUER!,
-        token_endpoint: process.env.AZURE_OPENID_CONFIG_TOKEN_ENDPOINT!,
-        client_id: process.env.AZURE_APP_CLIENT_ID!,
-        jwk: process.env.AZURE_APP_JWK!,
-        grant_body: {
-          grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-          requested_token_use: "on_behalf_of",
-          assertion,
-          scope,
-        },
-      }),
-    sha256(assertion + scope),
-  );
+export const requestAzureOboToken: OboProvider = withCache(
+  withPrometheus(async (assertion, scope) =>
+    grantOboToken({
+      issuer: process.env.AZURE_OPENID_CONFIG_ISSUER!,
+      token_endpoint: process.env.AZURE_OPENID_CONFIG_TOKEN_ENDPOINT!,
+      client_id: process.env.AZURE_APP_CLIENT_ID!,
+      jwk: process.env.AZURE_APP_JWK!,
+      grant_body: {
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        requested_token_use: "on_behalf_of",
+        assertion,
+        scope,
+      },
+    }),
+  ),
+);
 
-export const requestTokenxOboToken = async (
-  subject_token: string,
-  audience: string,
-) =>
-  withCache(
-    () =>
-      grantOboToken({
-        issuer: process.env.TOKEN_X_ISSUER!,
-        token_endpoint: process.env.TOKEN_X_TOKEN_ENDPOINT!,
-        client_id: process.env.TOKEN_X_CLIENT_ID!,
-        jwk: process.env.TOKEN_X_PRIVATE_JWK!,
-        grant_body: {
-          grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
-          subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
-          subject_token,
-          audience,
-        },
-      }),
-    sha256(subject_token + audience),
-  );
+export const requestTokenxOboToken: OboProvider = withCache(
+  withPrometheus(async (subject_token, audience) =>
+    grantOboToken({
+      issuer: process.env.TOKEN_X_ISSUER!,
+      token_endpoint: process.env.TOKEN_X_TOKEN_ENDPOINT!,
+      client_id: process.env.TOKEN_X_CLIENT_ID!,
+      jwk: process.env.TOKEN_X_PRIVATE_JWK!,
+      grant_body: {
+        grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+        subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+        subject_token,
+        audience,
+      },
+    }),
+  ),
+);
 
-export const requestOboToken = async (
+export type OboProvider = (
   token: string,
   audience: string,
-): Promise<Result<string, Error>> => {
+) => Promise<Result<string, Error>>;
+
+export const requestOboToken: OboProvider = async (token, audience) => {
   if (!token) {
     return Result.Error(new Error("empty token"));
   }

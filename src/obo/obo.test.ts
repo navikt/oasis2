@@ -5,8 +5,8 @@ import {
   requestTokenxOboToken,
   requestAzureOboToken,
   requestOboToken,
-} from "./obo";
-import { jwk, jwkPrivate, token } from "./test-provider";
+} from ".";
+import { jwk, jwkPrivate, token } from "../test-provider";
 
 describe("request obo token", () => {
   afterEach(() => {
