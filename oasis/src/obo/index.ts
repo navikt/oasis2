@@ -38,7 +38,7 @@ const grantOboToken: ({
       ? Result.Ok(access_token)
       : Result.Error(Error("TokenSet does not contain an access_token"));
   } catch (e) {
-    return Result.Error(e);
+    return Result.Error(e as Error);
   }
 };
 

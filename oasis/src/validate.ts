@@ -26,7 +26,7 @@ const validateJwt = async ({
     );
     return Result.Ok(undefined);
   } catch (e) {
-    return Result.Error(e);
+    return Result.Error(e as Error);
   }
 };
 
