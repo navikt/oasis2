@@ -11,7 +11,7 @@ export default async function authenticatedHandler(
   const validationResult = await validateToken(token);
   console.log("token validated", validationResult.isOk());
 
-  validationResult.match<any>({
+  return validationResult.match<any>({
     Ok: async () => {
       console.log("requesting obo");
       const oboRes = process.env.IDPORTEN_ISSUER
