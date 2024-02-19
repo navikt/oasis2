@@ -45,21 +45,25 @@ describe("request obo token", () => {
 
   it("selects tokenx", async () => {
     process.env.TOKEN_X_ISSUER = "tokenx_issuer";
-    process.env.TOKEN_X_WELL_KNOWN_URL = "http://tokenx-provider.test/jwks";
+    process.env.TOKEN_X_TOKEN_ENDPOINT = "http://tokenx.test/token";
+    process.env.TOKEN_X_PRIVATE_JWK = JSON.stringify(await jwkPrivate());
+    process.env.TOKEN_X_CLIENT_ID = "token_x_client_id";
 
     const result = await requestOboToken(await token(), "audience");
     expect(result.isError() && result.getError().message).toBe(
-      "getaddrinfo ENOTFOUND tokenx-provider.test",
+      "getaddrinfo ENOTFOUND tokenx.test",
     );
   });
 
   it("selects azure", async () => {
     process.env.AZURE_OPENID_CONFIG_ISSUER = "azuer_issuer";
-    process.env.AZURE_APP_WELL_KNOWN_URL = "http://azure-provider.test/jwks";
+    process.env.AZURE_OPENID_CONFIG_TOKEN_ENDPOINT = "http://azure.test/token";
+    process.env.AZURE_APP_CLIENT_ID = "azure_client_id";
+    process.env.AZURE_APP_JWK = JSON.stringify(await jwkPrivate());
 
     const result = await requestOboToken(await token(), "audience");
     expect(result.isError() && result.getError().message).toBe(
-      "getaddrinfo ENOTFOUND azure-provider.test",
+      "getaddrinfo ENOTFOUND azure.test",
     );
   });
 });
@@ -71,19 +75,14 @@ describe("request tokenX obo token", () => {
     process.env.TOKEN_X_CLIENT_ID = "token_x_client_id";
     process.env.TOKEN_X_PRIVATE_JWK = JSON.stringify(await jwkPrivate());
     process.env.TOKEN_X_WELL_KNOWN_URL = "http://tokenx-provider.test/jwks";
+    process.env.TOKEN_X_ISSUER = "tokenx_issuer";
+    process.env.TOKEN_X_TOKEN_ENDPOINT = "http://tokenx.test/token";
+    process.env.TOKEN_X_JWKS_URI = "http://tokenx-provider.test/token";
 
     const token_endpoint = "http://tokenx.test/token";
 
     server = setupServer(
-      http.get(
-        `${process.env.TOKEN_X_WELL_KNOWN_URL}/.well-known/openid-configuration`,
-        async () =>
-          HttpResponse.json({
-            token_endpoint,
-            token_endpoint_auth_signing_alg_values_supported: ["RS256"],
-          }),
-      ),
-      http.get(process.env.TOKEN_X_WELL_KNOWN_URL, async () =>
+      http.get(process.env.TOKEN_X_JWKS_URI, async () =>
         HttpResponse.json({ keys: [await jwk()] }),
       ),
       http.post(token_endpoint, async ({ request }) => {
@@ -98,7 +97,7 @@ describe("request tokenX obo token", () => {
 
         const client_assert_token = await jwtVerify(
           client_assertion,
-          createRemoteJWKSet(new URL(process.env.TOKEN_X_WELL_KNOWN_URL!)),
+          createRemoteJWKSet(new URL(process.env.TOKEN_X_JWKS_URI!)),
           {
             subject: "token_x_client_id",
             issuer: "token_x_client_id",
@@ -179,7 +178,7 @@ describe("request tokenX obo token", () => {
         (() =>
           jwtVerify(
             result.get(),
-            createRemoteJWKSet(new URL(process.env.TOKEN_X_WELL_KNOWN_URL!)),
+            createRemoteJWKSet(new URL(process.env.TOKEN_X_JWKS_URI!)),
             {
               issuer: "urn:tokenx:dings",
               audience: "audience",
@@ -210,20 +209,15 @@ describe("request azure obo token", () => {
     process.env.AZURE_APP_CLIENT_ID = "azure_client_id";
     process.env.AZURE_APP_CLIENT_SECRET = "azure_client_secret";
     process.env.AZURE_APP_JWK = JSON.stringify(await jwkPrivate());
-    process.env.AZURE_APP_WELL_KNOWN_URL = "http://azure-provider.test/jwks";
+    process.env.AZURE_OPENID_CONFIG_ISSUER = "azure_issuer";
+    process.env.AZURE_OPENID_CONFIG_TOKEN_ENDPOINT = "http://azure.test/token";
+    process.env.AZURE_OPENID_CONFIG_JWKS_URI =
+      "http://tokenx-provider.test/jwks";
 
     const token_endpoint = "http://azure.test/token";
 
     server = setupServer(
-      http.get(
-        `${process.env.AZURE_APP_WELL_KNOWN_URL}/.well-known/openid-configuration`,
-        async () =>
-          HttpResponse.json({
-            token_endpoint,
-            token_endpoint_auth_signing_alg_values_supported: ["RS256"],
-          }),
-      ),
-      http.get(process.env.AZURE_APP_WELL_KNOWN_URL, async () =>
+      http.get(process.env.AZURE_OPENID_CONFIG_JWKS_URI, async () =>
         HttpResponse.json({ keys: [await jwk()] }),
       ),
       http.post(token_endpoint, async ({ request }) => {
@@ -234,11 +228,14 @@ describe("request azure obo token", () => {
           requested_token_use,
           grant_type,
           client_assertion_type,
+          client_id,
         } = Object.fromEntries(new URLSearchParams(await request.text()));
 
         const client_assert_token = await jwtVerify(
           client_assertion,
-          createRemoteJWKSet(new URL(process.env.AZURE_APP_WELL_KNOWN_URL!)),
+          createRemoteJWKSet(
+            new URL(process.env.AZURE_OPENID_CONFIG_JWKS_URI!),
+          ),
           {
             subject: "azure_client_id",
             issuer: "azure_client_id",
@@ -251,9 +248,27 @@ describe("request azure obo token", () => {
           throw Error("wrong grant_type");
         } else if (requested_token_use !== "on_behalf_of") {
           throw Error("wrong requested_token_use");
-        }
-
-        if (scope === "error-audience") {
+        } else if (client_id !== "azure_client_id") {
+          throw Error("wrong client_id");
+        } else if (
+          client_assertion_type !==
+          "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+        ) {
+          throw Error("wrong client_assertion_type");
+        } else if (
+          Math.abs(
+            client_assert_token.payload.nbf! - Math.floor(Date.now() / 1000),
+          ) > 10
+        ) {
+          throw Error("wrong client_assert_token.payload.nbf");
+        } else if (!client_assert_token.payload.jti) {
+          throw Error("missing client_assert_token.payload.jti");
+        } else if (
+          client_assert_token.payload.exp! - Math.floor(Date.now() / 1000) >
+          120
+        ) {
+          throw Error("client_assert_token.payload.exp too large");
+        } else if (scope === "error-audience") {
           throw Error("error-audience");
         } else {
           return HttpResponse.json({
@@ -301,7 +316,9 @@ describe("request azure obo token", () => {
         (() =>
           jwtVerify(
             result.get(),
-            createRemoteJWKSet(new URL(process.env.AZURE_APP_WELL_KNOWN_URL!)),
+            createRemoteJWKSet(
+              new URL(process.env.AZURE_OPENID_CONFIG_JWKS_URI!),
+            ),
             {
               issuer: "urn:azure:dings",
               audience: "audience",

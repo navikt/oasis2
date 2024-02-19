@@ -2,20 +2,24 @@ import { GrantBody, Issuer } from "openid-client";
 import { Result } from "./result";
 
 const grantOboToken = async ({
-  well_known_url,
+  issuer,
+  token_endpoint,
   client_id,
   jwk,
   grant_body,
 }: {
-  well_known_url: string;
+  issuer: string;
+  token_endpoint: string;
   client_id: string;
   jwk: string;
   grant_body: GrantBody;
 }): Promise<Result<string, Error>> => {
   try {
-    const { access_token } = await new (
-      await Issuer.discover(well_known_url)
-    ).Client(
+    const { access_token } = await new new Issuer({
+      issuer,
+      token_endpoint,
+      token_endpoint_auth_signing_alg_values_supported: ["RS256"],
+    }).Client(
       { client_id, token_endpoint_auth_method: "private_key_jwt" },
       { keys: [JSON.parse(jwk)] },
     ).grant(grant_body, {
@@ -31,7 +35,8 @@ const grantOboToken = async ({
 
 export const requestAzureOboToken = async (assertion: string, scope: string) =>
   grantOboToken({
-    well_known_url: process.env.AZURE_APP_WELL_KNOWN_URL!,
+    issuer: process.env.AZURE_OPENID_CONFIG_ISSUER!,
+    token_endpoint: process.env.AZURE_OPENID_CONFIG_TOKEN_ENDPOINT!,
     client_id: process.env.AZURE_APP_CLIENT_ID!,
     jwk: process.env.AZURE_APP_JWK!,
     grant_body: {
@@ -47,7 +52,8 @@ export const requestTokenxOboToken = async (
   audience: string,
 ) =>
   grantOboToken({
-    well_known_url: process.env.TOKEN_X_WELL_KNOWN_URL!,
+    issuer: process.env.TOKEN_X_ISSUER!,
+    token_endpoint: process.env.TOKEN_X_TOKEN_ENDPOINT!,
     client_id: process.env.TOKEN_X_CLIENT_ID!,
     jwk: process.env.TOKEN_X_PRIVATE_JWK!,
     grant_body: {
