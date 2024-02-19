@@ -7,20 +7,34 @@ export default async function authenticatedHandler(
 ) {
   const token = req.headers.authorization!.replace("Bearer ", "");
 
+  console.log("validating token", token);
   const validationResult = await validateToken(token);
+  console.log("token validated", validationResult.isOk());
 
-  if (validationResult.isError()) return res.status(401);
+  validationResult.match<any>({
+    Ok: async () => {
+      console.log("requesting obo");
+      const oboRes = process.env.IDPORTEN_ISSUER
+        ? await requestOboToken(
+            token,
+            "dev-gcp:oasis-maintainers:oasis-idporten",
+          )
+        : await requestOboToken(
+            token,
+            "api://dev-gcp.oasis-maintainers.oasis-azure/.default",
+          );
+      console.log("obo granted", "err", oboRes.isError() && oboRes.getError());
 
-  const oboRes = process.env.IDPORTEN_ISSUER
-    ? await requestOboToken(token, "dev-gcp:oasis-maintainers:oasis-idporten")
-    : await requestOboToken(
-        token,
-        "api://dev-gcp.oasis-maintainers.oasis-azure/.default",
-      );
-
-  oboRes.match<void>({
-    Ok: (oboToken) =>
-      res.status(200).send(`Made obo-token request: got ${oboToken.length}`),
-    Error: () => res.status(401),
+      oboRes.match<void>({
+        Ok: (oboToken) =>
+          res
+            .status(200)
+            .send(`Made obo-token request: got ${oboToken.length}`),
+        Error: () => res.status(401),
+      });
+    },
+    Error: () => {
+      return res.status(401);
+    },
   });
 }
