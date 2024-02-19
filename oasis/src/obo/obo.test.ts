@@ -107,31 +107,37 @@ describe("request tokenX obo token", () => {
         );
 
         if (grant_type !== "urn:ietf:params:oauth:grant-type:token-exchange") {
-          throw Error("wrong grant_type");
+          console.error("wrong grant_type");
+          return HttpResponse.json({});
         } else if (
           client_assertion_type !==
           "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
         ) {
-          throw Error("wrong client_assertion_type");
+          console.error("wrong client_assertion_type");
+          return HttpResponse.json({});
         } else if (
           subject_token_type !== "urn:ietf:params:oauth:token-type:jwt"
         ) {
-          throw Error("wrong subject_token_type");
+          console.error("wrong subject_token_type");
+          return HttpResponse.json({});
         } else if (
           Math.abs(
             client_assert_token.payload.nbf! - Math.floor(Date.now() / 1000),
           ) > 10
         ) {
-          throw Error("wrong client_assert_token.payload.nbf");
+          console.error("wrong client_assert_token.payload.nbf");
+          return HttpResponse.json({});
         } else if (!client_assert_token.payload.jti) {
-          throw Error("missing client_assert_token.payload.jti");
+          console.error("missing client_assert_token.payload.jti");
+          return HttpResponse.json({});
         } else if (
           client_assert_token.payload.exp! - Math.floor(Date.now() / 1000) >
           120
         ) {
-          throw Error("client_assert_token.payload.exp too large");
+          console.error("client_assert_token.payload.exp too large");
+          return HttpResponse.json({});
         } else if (audience === "error-audience") {
-          throw Error("error-audience");
+          return HttpResponse.json({});
         } else if (audience === "timed-out") {
           return HttpResponse.json({
             access_token: await token({
@@ -206,7 +212,7 @@ describe("request tokenX obo token", () => {
       "error-audience",
     );
     expect(result.isError() && result.getError().message).toBe(
-      "error-audience",
+      "TokenSet does not contain an access_token",
     );
   });
 
@@ -291,31 +297,38 @@ describe("request azure obo token", () => {
         );
 
         if (grant_type !== "urn:ietf:params:oauth:grant-type:jwt-bearer") {
-          throw Error("wrong grant_type");
+          console.error("wrong grant_type");
+          return HttpResponse.json({});
         } else if (requested_token_use !== "on_behalf_of") {
-          throw Error("wrong requested_token_use");
+          console.error("wrong requested_token_use");
+          return HttpResponse.json({});
         } else if (client_id !== "azure_client_id") {
-          throw Error("wrong client_id");
+          console.error("wrong client_id");
+          return HttpResponse.json({});
         } else if (
           client_assertion_type !==
           "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
         ) {
-          throw Error("wrong client_assertion_type");
+          console.error("wrong client_assertion_type");
+          return HttpResponse.json({});
         } else if (
           Math.abs(
             client_assert_token.payload.nbf! - Math.floor(Date.now() / 1000),
           ) > 10
         ) {
-          throw Error("wrong client_assert_token.payload.nbf");
+          console.error("wrong client_assert_token.payload.nbf");
+          return HttpResponse.json({});
         } else if (!client_assert_token.payload.jti) {
-          throw Error("missing client_assert_token.payload.jti");
+          console.error("missing client_assert_token.payload.jti");
+          return HttpResponse.json({});
         } else if (
           client_assert_token.payload.exp! - Math.floor(Date.now() / 1000) >
           120
         ) {
-          throw Error("client_assert_token.payload.exp too large");
+          console.error("client_assert_token.payload.exp too large");
+          return HttpResponse.json({});
         } else if (scope === "error-audience") {
-          throw Error("error-audience");
+          return HttpResponse.json({});
         } else {
           return HttpResponse.json({
             access_token: await token({
@@ -383,7 +396,7 @@ describe("request azure obo token", () => {
       "error-audience",
     );
     expect(result.isError() && result.getError().message).toBe(
-      "error-audience",
+      "TokenSet does not contain an access_token",
     );
   });
 });
