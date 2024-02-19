@@ -1,5 +1,12 @@
 import { GrantBody, Issuer } from "openid-client";
+import { createHash } from "node:crypto";
 import { Result } from "./result";
+import { JWTPayload, decodeJwt } from "jose";
+import SieveCache from "./cache";
+
+function sha256(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
 
 const grantOboToken = async ({
   issuer,
@@ -47,11 +54,60 @@ export const requestAzureOboToken = async (assertion: string, scope: string) =>
     },
   });
 
+let cache: SieveCache;
+
+const averageJwtSize = 1024; // bytes
+const maxCacheSize = 128 /* MB */ * 1024 /* KB */ * 1024; /* bytes */
+const maxCacheCapacity = Math.floor(maxCacheSize / averageJwtSize);
+
+function getCache() {
+  if (cache == undefined) {
+    cache = new SieveCache(maxCacheCapacity);
+  }
+  return cache;
+}
+
+function getNow(timestamp: number) {
+  const now = Date.now();
+  if (Math.abs(now - timestamp) < Math.abs(now - timestamp * 1000)) {
+    return now;
+  } else {
+    return Math.round(now / 1000);
+  }
+}
+
+export function secondsUntil(timestamp: number): number {
+  if (timestamp <= 0) return 0;
+  const now = getNow(timestamp);
+  if (timestamp <= now) return 0;
+  return Math.round(timestamp - now);
+}
+
+const NO_CACHE_TTL = 0;
+
+function getSecondsToExpire(payload: JWTPayload) {
+  return Math.max(
+    payload.exp ? secondsUntil(payload.exp) : NO_CACHE_TTL,
+    NO_CACHE_TTL,
+  );
+}
+
 export const requestTokenxOboToken = async (
   subject_token: string,
   audience: string,
-) =>
-  grantOboToken({
+) => {
+  const cache = getCache();
+
+  const key = sha256(subject_token + audience);
+  const cachedToken = cache.get(key);
+  if (cachedToken) {
+    const now = Math.round(Date.now() / 1000);
+    if (decodeJwt(cachedToken).exp! > now - 5) {
+      return Result.Ok<string, Error>(cachedToken);
+    }
+  }
+
+  const result = await grantOboToken({
     issuer: process.env.TOKEN_X_ISSUER!,
     token_endpoint: process.env.TOKEN_X_TOKEN_ENDPOINT!,
     client_id: process.env.TOKEN_X_CLIENT_ID!,
@@ -63,6 +119,16 @@ export const requestTokenxOboToken = async (
       subject_token,
     },
   });
+
+  if (result.isOk()) {
+    const token = result.get();
+    const ttl = getSecondsToExpire(decodeJwt(token));
+    if (ttl > 0) {
+      cache.set(key, token, ttl);
+    }
+  }
+  return result;
+};
 
 export const requestOboToken = async (
   token: string,

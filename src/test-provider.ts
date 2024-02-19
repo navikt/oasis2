@@ -18,16 +18,20 @@ export const token = async ({
   audience = "default_audience",
   issuer = "default_issuer",
   algorithm = alg,
+  exp = Math.round(Date.now() / 1000) + 1000,
 }: {
   pid?: string;
   audience?: string;
   issuer?: string;
   algorithm?: string;
+  exp?: number;
 } = {}) =>
   new SignJWT({
     pid,
   })
+    .setExpirationTime(exp)
     .setProtectedHeader({ alg: algorithm })
     .setAudience(audience)
     .setIssuer(issuer)
+    .setJti(`${Math.random()}`)
     .sign(await privateKey());

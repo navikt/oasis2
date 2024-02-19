@@ -132,6 +132,15 @@ describe("request tokenX obo token", () => {
           throw Error("client_assert_token.payload.exp too large");
         } else if (audience === "error-audience") {
           throw Error("error-audience");
+        } else if (audience === "timed-out") {
+          return HttpResponse.json({
+            access_token: await token({
+              pid: subject_token,
+              issuer: "urn:tokenx:dings",
+              audience,
+              exp: Math.round(Date.now() / 1000) - 10,
+            }),
+          });
         } else {
           return HttpResponse.json({
             access_token: await token({
@@ -199,6 +208,43 @@ describe("request tokenX obo token", () => {
     expect(result.isError() && result.getError().message).toBe(
       "error-audience",
     );
+  });
+
+  it("returns cached token", async () => {
+    const clientToken = await token({
+      audience: "idporten_audience",
+      issuer: "idporten_issuer",
+    });
+    const result = await requestTokenxOboToken(clientToken, "audience");
+    const result2 = await requestTokenxOboToken(clientToken, "audience");
+
+    expect(result.isError()).toBe(false);
+
+    if (result.isOk() && result2.isOk()) {
+      const token1 = decodeJwt(result.get());
+      const token2 = decodeJwt(result2.get());
+
+      expect(token1.jti).toBe(token2.jti);
+    }
+  });
+
+  it("cache times out", async () => {
+    const clientToken = await token({
+      audience: "idporten_audience",
+      issuer: "idporten_issuer",
+    });
+    const result = await requestTokenxOboToken(clientToken, "timed-out");
+    const result2 = await requestTokenxOboToken(clientToken, "timed-out");
+
+    expect(result.isError()).toBe(false);
+    expect(result2.isError()).toBe(false);
+
+    if (result.isOk() && result2.isOk()) {
+      const token1 = decodeJwt(result.get());
+      const token2 = decodeJwt(result2.get());
+
+      expect(token1.jti).not.toBe(token2.jti);
+    }
   });
 });
 
