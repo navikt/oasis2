@@ -13,11 +13,17 @@ const validateJwt = async ({
   audience: string;
 }): Promise<Result<undefined, Error>> => {
   try {
-    await jwtVerify(token, createRemoteJWKSet(new URL(jwksUri)), {
-      issuer,
-      audience,
-      algorithms: ["RS256"],
-    });
+    await jwtVerify(
+      token,
+      createRemoteJWKSet(new URL(jwksUri), {
+        cacheMaxAge: 60 * 60 * 1000 /* 1 hour */,
+      }),
+      {
+        issuer,
+        audience,
+        algorithms: ["RS256"],
+      },
+    );
     return Result.Ok(undefined);
   } catch (e) {
     return Result.Error(e);
