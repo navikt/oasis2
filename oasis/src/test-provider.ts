@@ -31,7 +31,7 @@ export const token = async ({
   })
     .setExpirationTime(exp)
     .setProtectedHeader({ alg: algorithm })
-    .setAudience(audience)
+    .setAudience([audience, "https://nav.no"])
     .setIssuer(issuer)
     .setJti(`${Math.random()}`)
     .sign(await privateKey());

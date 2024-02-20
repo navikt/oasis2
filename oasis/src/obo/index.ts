@@ -3,13 +3,7 @@ import { Result } from "../result";
 import { withCache } from "./token-cache";
 import { withPrometheus } from "./prometheus";
 
-const grantOboToken: ({
-  issuer,
-  token_endpoint,
-  client_id,
-  jwk,
-  grant_body,
-}: {
+const grantOboToken: (opts: {
   issuer: string;
   token_endpoint: string;
   client_id: string;
@@ -38,7 +32,10 @@ const grantOboToken: ({
       { client_id, token_endpoint_auth_method: "private_key_jwt" },
       { keys: [JSON.parse(jwk)] },
     ).grant(grant_body, {
-      clientAssertionPayload: { nbf: Math.floor(Date.now() / 1000) },
+      clientAssertionPayload: {
+        nbf: Math.floor(Date.now() / 1000),
+        aud: token_endpoint,
+      },
     });
 
     console.log("grant obo success");

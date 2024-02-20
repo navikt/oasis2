@@ -101,12 +101,19 @@ describe("request tokenX obo token", () => {
           {
             subject: "token_x_client_id",
             issuer: "token_x_client_id",
-            audience: "http://tokenx.test/token",
             algorithms: ["RS256"],
           },
         );
 
-        if (grant_type !== "urn:ietf:params:oauth:grant-type:token-exchange") {
+        if (client_assert_token.payload.aud !== "http://tokenx.test/token") {
+          console.error(
+            "wrong client_assert.aud",
+            client_assert_token.payload.aud,
+          );
+          return HttpResponse.json({});
+        } else if (
+          grant_type !== "urn:ietf:params:oauth:grant-type:token-exchange"
+        ) {
           console.error("wrong grant_type");
           return HttpResponse.json({});
         } else if (
@@ -291,12 +298,19 @@ describe("request azure obo token", () => {
           {
             subject: "azure_client_id",
             issuer: "azure_client_id",
-            audience: "http://azure.test/token",
             algorithms: ["RS256"],
           },
         );
 
-        if (grant_type !== "urn:ietf:params:oauth:grant-type:jwt-bearer") {
+        if (client_assert_token.payload.aud !== "http://azure.test/token") {
+          console.error(
+            "wrong client_assert.aud",
+            client_assert_token.payload.aud,
+          );
+          return HttpResponse.json({});
+        } else if (
+          grant_type !== "urn:ietf:params:oauth:grant-type:jwt-bearer"
+        ) {
           console.error("wrong grant_type");
           return HttpResponse.json({});
         } else if (requested_token_use !== "on_behalf_of") {
@@ -350,6 +364,7 @@ describe("request azure obo token", () => {
       audience: "azure_audience",
       issuer: "azure_issuer",
     });
+    console.log(jwt);
     const result = await requestAzureOboToken(jwt, "audience");
 
     expect(result.isOk() && decodeJwt(result.get()).iss).toBe(
