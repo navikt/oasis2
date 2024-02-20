@@ -364,7 +364,6 @@ describe("request azure obo token", () => {
       audience: "azure_audience",
       issuer: "azure_issuer",
     });
-    console.log(jwt);
     const result = await requestAzureOboToken(jwt, "audience");
 
     expect(result.isOk() && decodeJwt(result.get()).iss).toBe(

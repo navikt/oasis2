@@ -17,13 +17,6 @@ const grantOboToken: (opts: {
   grant_body,
 }) => {
   try {
-    console.log("grant obo token", {
-      issuer,
-      token_endpoint,
-      client_id,
-      jwk,
-      grant_body,
-    });
     const { access_token } = await new new Issuer({
       issuer,
       token_endpoint,
@@ -37,8 +30,6 @@ const grantOboToken: (opts: {
         aud: token_endpoint,
       },
     });
-
-    console.log("grant obo success");
 
     return access_token
       ? Result.Ok(access_token)

@@ -7,13 +7,10 @@ export default async function authenticatedHandler(
 ) {
   const token = req.headers.authorization!.replace("Bearer ", "");
 
-  console.log("validating token", token);
   const validationResult = await validateToken(token);
-  console.log("token validated", validationResult.isOk());
 
   return validationResult.match<any>({
     Ok: async () => {
-      console.log("requesting obo");
       const oboRes = process.env.IDPORTEN_ISSUER
         ? await requestOboToken(
             token,
@@ -23,7 +20,6 @@ export default async function authenticatedHandler(
             token,
             "api://dev-gcp.oasis-maintainers.oasis-azure/.default",
           );
-      console.log("obo granted", "err", oboRes.isError() && oboRes.getError());
 
       oboRes.match<void>({
         Ok: (oboToken) =>
