@@ -23,6 +23,13 @@ const grantOboToken: ({
   grant_body,
 }) => {
   try {
+    console.log("grant obo token", {
+      issuer,
+      token_endpoint,
+      client_id,
+      jwk,
+      grant_body,
+    });
     const { access_token } = await new new Issuer({
       issuer,
       token_endpoint,
@@ -34,10 +41,13 @@ const grantOboToken: ({
       clientAssertionPayload: { nbf: Math.floor(Date.now() / 1000) },
     });
 
+    console.log("grant obo success");
+
     return access_token
       ? Result.Ok(access_token)
       : Result.Error(Error("TokenSet does not contain an access_token"));
   } catch (e) {
+    console.error("grant obo error", e);
     return Result.Error(e as Error);
   }
 };
