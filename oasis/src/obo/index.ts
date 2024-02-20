@@ -1,7 +1,9 @@
 import { GrantBody, Issuer } from "openid-client";
-import { Result } from "../result";
 import { withCache } from "./token-cache";
 import { withPrometheus } from "./prometheus";
+import { Result } from "..";
+
+type OboResult = Result<{ token: string }>;
 
 const grantOboToken: (opts: {
   issuer: string;
@@ -9,7 +11,7 @@ const grantOboToken: (opts: {
   client_id: string;
   jwk: string;
   grant_body: GrantBody;
-}) => Promise<Result<string, Error>> = async ({
+}) => Promise<OboResult> = async ({
   issuer,
   token_endpoint,
   client_id,
@@ -32,10 +34,9 @@ const grantOboToken: (opts: {
     });
 
     return access_token
-      ? Result.Ok(access_token)
+      ? Result.Ok({ token: access_token })
       : Result.Error(Error("TokenSet does not contain an access_token"));
   } catch (e) {
-    console.error("grant obo error", e);
     return Result.Error(e as Error);
   }
 };
@@ -77,26 +78,26 @@ export const requestTokenxOboToken: OboProvider = withCache(
 export type OboProvider = (
   token: string,
   audience: string,
-) => Promise<Result<string, Error>>;
+) => Promise<OboResult>;
 
 export const requestOboToken: OboProvider = async (token, audience) => {
   if (!token) {
-    return Result.Error(new Error("empty token"));
+    return Result.Error("empty token");
   }
   if (!audience) {
-    return Result.Error(new Error("empty audience"));
+    return Result.Error("empty audience");
   }
 
   const tokenx: boolean = !!process.env.TOKEN_X_ISSUER;
   const azure: boolean = !!process.env.AZURE_OPENID_CONFIG_ISSUER;
 
   if (tokenx && azure) {
-    return Result.Error(new Error("multiple identity providers"));
+    return Result.Error("multiple identity providers");
   } else if (tokenx) {
     return requestTokenxOboToken(token, audience);
   } else if (azure) {
     return requestAzureOboToken(token, audience);
   } else {
-    return Result.Error(new Error("no identity provider"));
+    return Result.Error("no identity provider");
   }
 };

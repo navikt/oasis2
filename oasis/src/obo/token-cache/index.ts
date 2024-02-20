@@ -2,7 +2,7 @@ import { JWTPayload, decodeJwt } from "jose";
 import { createHash } from "node:crypto";
 import SieveCache from "./cache";
 import { OboProvider } from "..";
-import { Result } from "../../result";
+import { Result } from "../..";
 
 function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
@@ -35,20 +35,18 @@ export const withCache = (oboProvider: OboProvider): OboProvider => {
     const key = sha256(token + audience);
     const cachedToken = cache.get(key);
     if (cachedToken) {
-      return Promise.resolve(Result.Ok(cachedToken));
+      return Promise.resolve(Result.Ok({ token: cachedToken }));
     }
 
-    return oboProvider(token, audience).then((result) =>
-      result.match<Result<string, Error>>({
-        Ok: (v) => {
-          const ttl = getSecondsToExpire(decodeJwt(v));
-          if (ttl > 0) {
-            cache.set(key, v, ttl);
-          }
-          return Result.Ok(v);
-        },
-        Error: (e) => Result.Error(e),
-      }),
-    );
+    return oboProvider(token, audience).then((result) => {
+      if (result.ok) {
+        const ttl = getSecondsToExpire(decodeJwt(result.token));
+        if (ttl > 0) {
+          cache.set(key, result.token, ttl);
+        }
+      }
+
+      return result;
+    });
   };
 };

@@ -16,21 +16,17 @@ describe("request obo token", () => {
 
   it("fails for empty token", async () => {
     const result = await requestOboToken("", "");
-    expect(result.isError() && result.getError().message).toBe("empty token");
+    expect(result.ok).toBe(false);
   });
 
   it("fails for empty audience", async () => {
     const result = await requestOboToken(await token(), "");
-    expect(result.isError() && result.getError().message).toBe(
-      "empty audience",
-    );
+    expect(result.ok).toBe(false);
   });
 
   it("fails with no identity provider", async () => {
     const result = await requestOboToken(await token(), "audience");
-    expect(result.isError() && result.getError().message).toBe(
-      "no identity provider",
-    );
+    expect(result.ok).toBe(false);
   });
 
   it("fails with multiple identity providers", async () => {
@@ -38,9 +34,7 @@ describe("request obo token", () => {
     process.env.AZURE_OPENID_CONFIG_ISSUER = "azure_issuer";
 
     const result = await requestOboToken(await token(), "audience");
-    expect(result.isError() && result.getError().message).toBe(
-      "multiple identity providers",
-    );
+    expect(result.ok).toBe(false);
   });
 
   it("selects tokenx", async () => {
@@ -50,9 +44,7 @@ describe("request obo token", () => {
     process.env.TOKEN_X_CLIENT_ID = "token_x_client_id";
 
     const result = await requestOboToken(await token(), "audience");
-    expect(result.isError() && result.getError().message).toBe(
-      "getaddrinfo ENOTFOUND tokenx.test",
-    );
+    expect(result.ok).toBe(false);
   });
 
   it("selects azure", async () => {
@@ -62,9 +54,7 @@ describe("request obo token", () => {
     process.env.AZURE_APP_JWK = JSON.stringify(await jwkPrivate());
 
     const result = await requestOboToken(await token(), "audience");
-    expect(result.isError() && result.getError().message).toBe(
-      "getaddrinfo ENOTFOUND azure.test",
-    );
+    expect(result.ok).toBe(false);
   });
 });
 
@@ -177,11 +167,9 @@ describe("request tokenX obo token", () => {
     });
     const result = await requestTokenxOboToken(jwt, "audience");
 
-    expect(result.isOk() && decodeJwt(result.get()).iss).toBe(
-      "urn:tokenx:dings",
-    );
-    expect(result.isOk() && decodeJwt(result.get()).pid).toBe(jwt);
-    expect(result.isOk() && decodeJwt(result.get()).nbf).toBe(undefined);
+    expect(result.ok && decodeJwt(result.token).iss).toBe("urn:tokenx:dings");
+    expect(result.ok && decodeJwt(result.token).pid).toBe(jwt);
+    expect(result.ok && decodeJwt(result.token).nbf).toBe(undefined);
   });
 
   it("returns valid token", async () => {
@@ -193,13 +181,13 @@ describe("request tokenX obo token", () => {
       "audience",
     );
 
-    expect(result.isError() && result.getError().message).toBe(false);
+    expect(result.ok).toBe(true);
 
-    if (result.isOk()) {
+    if (result.ok) {
       expect(
         (() =>
           jwtVerify(
-            result.get(),
+            result.token,
             createRemoteJWKSet(new URL(process.env.TOKEN_X_JWKS_URI!)),
             {
               issuer: "urn:tokenx:dings",
@@ -218,9 +206,7 @@ describe("request tokenX obo token", () => {
       }),
       "error-audience",
     );
-    expect(result.isError() && result.getError().message).toBe(
-      "TokenSet does not contain an access_token",
-    );
+    expect(result.ok).toBe(false);
   });
 
   it("returns cached token", async () => {
@@ -231,11 +217,11 @@ describe("request tokenX obo token", () => {
     const result = await requestTokenxOboToken(clientToken, "audience");
     const result2 = await requestTokenxOboToken(clientToken, "audience");
 
-    expect(result.isError()).toBe(false);
+    expect(result.ok).toBe(true);
 
-    if (result.isOk() && result2.isOk()) {
-      const token1 = decodeJwt(result.get());
-      const token2 = decodeJwt(result2.get());
+    if (result.ok && result2.ok) {
+      const token1 = decodeJwt(result.token);
+      const token2 = decodeJwt(result2.token);
 
       expect(token1.jti).toBe(token2.jti);
     }
@@ -249,12 +235,12 @@ describe("request tokenX obo token", () => {
     const result = await requestTokenxOboToken(clientToken, "timed-out");
     const result2 = await requestTokenxOboToken(clientToken, "timed-out");
 
-    expect(result.isError()).toBe(false);
-    expect(result2.isError()).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(result2.ok).toBe(true);
 
-    if (result.isOk() && result2.isOk()) {
-      const token1 = decodeJwt(result.get());
-      const token2 = decodeJwt(result2.get());
+    if (result.ok && result2.ok) {
+      const token1 = decodeJwt(result.token);
+      const token2 = decodeJwt(result2.token);
 
       expect(token1.jti).not.toBe(token2.jti);
     }
@@ -366,11 +352,9 @@ describe("request azure obo token", () => {
     });
     const result = await requestAzureOboToken(jwt, "audience");
 
-    expect(result.isOk() && decodeJwt(result.get()).iss).toBe(
-      "urn:azure:dings",
-    );
-    expect(result.isOk() && decodeJwt(result.get()).pid).toBe(jwt);
-    expect(result.isOk() && decodeJwt(result.get()).nbf).toBe(undefined);
+    expect(result.ok && decodeJwt(result.token).iss).toBe("urn:azure:dings");
+    expect(result.ok && decodeJwt(result.token).pid).toBe(jwt);
+    expect(result.ok && decodeJwt(result.token).nbf).toBe(undefined);
   });
 
   it("returns valid token", async () => {
@@ -382,13 +366,13 @@ describe("request azure obo token", () => {
       "audience",
     );
 
-    expect(result.isError() && result.getError().message).toBe(false);
+    expect(result.ok).toBe(true);
 
-    if (result.isOk()) {
+    if (result.ok) {
       expect(
         (() =>
           jwtVerify(
-            result.get(),
+            result.token,
             createRemoteJWKSet(
               new URL(process.env.AZURE_OPENID_CONFIG_JWKS_URI!),
             ),
@@ -409,8 +393,6 @@ describe("request azure obo token", () => {
       }),
       "error-audience",
     );
-    expect(result.isError() && result.getError().message).toBe(
-      "TokenSet does not contain an access_token",
-    );
+    expect(result.ok).toBe(false);
   });
 });

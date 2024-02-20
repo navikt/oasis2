@@ -8,8 +8,10 @@ export default async function authenticatedHandler(
 ) {
   const token = req.headers.authorization!.replace("Bearer ", "");
 
-  (await validateToken(token)).match({
-    Ok: () => res.status(200).send(`Authenticated as ${decodeJwt(token).sub}`),
-    Error: () => res.status(401),
-  });
+  const result = await validateToken(token);
+  if (result.ok) {
+    res.status(200).send(`Authenticated as ${decodeJwt(token).sub}`);
+  } else {
+    res.status(401);
+  }
 }

@@ -42,7 +42,7 @@ export function withPrometheus(oboProvider: OboProvider): OboProvider {
 
     measureTokenExchange();
 
-    if (oboToken.isError()) {
+    if (!oboToken.ok) {
       prometheus.tokenExchangeFailures.labels({ provider }).inc();
     }
 

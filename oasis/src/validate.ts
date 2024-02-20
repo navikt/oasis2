@@ -1,5 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import { Result } from "./result";
+import { Result } from ".";
+
+type ValidationResult = Result;
 
 const validateJwt = async ({
   token,
@@ -11,7 +13,7 @@ const validateJwt = async ({
   jwksUri: string;
   issuer: string;
   audience: string;
-}): Promise<Result<undefined, Error>> => {
+}): Promise<ValidationResult> => {
   try {
     await jwtVerify(
       token,
@@ -24,7 +26,7 @@ const validateJwt = async ({
         algorithms: ["RS256"],
       },
     );
-    return Result.Ok(undefined);
+    return Result.Ok({});
   } catch (e) {
     return Result.Error(e as Error);
   }
@@ -56,21 +58,21 @@ export const validateTokenxToken = (token: string) =>
 
 export const validateToken = async (
   token: string,
-): Promise<Result<undefined, Error>> => {
+): Promise<ValidationResult> => {
   if (!token) {
-    return Result.Error(new Error("empty token"));
+    return Result.Error("empty token");
   }
 
   const idporten: boolean = !!process.env.IDPORTEN_ISSUER;
   const azure: boolean = !!process.env.AZURE_OPENID_CONFIG_ISSUER;
 
   if (idporten && azure) {
-    return Result.Error(new Error("multiple identity providers"));
+    return Result.Error("multiple identity providers");
   } else if (idporten) {
     return validateIdportenToken(token);
   } else if (azure) {
     return validateAzureToken(token);
   } else {
-    return Result.Error(new Error("no identity provider"));
+    return Result.Error("no identity provider");
   }
 };

@@ -8,20 +8,21 @@ export const getServerSideProps: GetServerSideProps<ClosedPageProps> = async ({
   if (req.headers.authorization) {
     const token = req.headers.authorization!.replace("Bearer ", "");
 
-    return (await validateToken(token)).match<any>({
-      Ok: () => {
-        const payload = decodeJwt(token);
-        return {
-          props: { sub: payload.sub as string },
-        };
-      },
-      Error: () => ({
+    const result = await validateToken(token);
+
+    if (result.ok) {
+      const payload = decodeJwt(token);
+      return {
+        props: { sub: payload.sub as string },
+      };
+    } else {
+      return {
         redirect: {
           destination: "/oauth2/login",
           permanent: false,
         },
-      }),
-    });
+      };
+    }
   } else {
     return {
       redirect: {
